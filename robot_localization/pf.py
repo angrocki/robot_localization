@@ -19,6 +19,7 @@ from occupancy_field import OccupancyField
 from helper_functions import TFHelper
 from rclpy.qos import qos_profile_sensor_data
 from angle_helpers import quaternion_from_euler
+from typing import List
 
 class Particle(object):
     """ Represents a hypothesis (particle) of the robot's pose consisting of x,y and theta (yaw)
@@ -47,6 +48,12 @@ class Particle(object):
                     orientation=Quaternion(x=q[0], y=q[1], z=q[2], w=q[3]))
 
     # TODO: define additional helper functions if needed
+
+    def particle_matrix(self):
+        """
+        Helper func to represent a particle as a matrix.
+        """
+        pass
 
 class ParticleFilter(Node):
     """ The class that represents a Particle Filter ROS Node
@@ -99,7 +106,7 @@ class ParticleFilter(Node):
         # this is the current scan that our run_loop should process
         self.scan_to_process = None
         # your particle cloud will go here
-        self.particle_cloud = []
+        self.particle_cloud: List[Particle] = []
 
         self.current_odom_xy_theta = []
         self.occupancy_field = OccupancyField(self)
@@ -212,7 +219,30 @@ class ParticleFilter(Node):
             self.current_odom_xy_theta = new_odom_xy_theta
             return
 
-        # TODO: modify particles using delta
+        # define parts of matrix 
+        t1_x = self.current_odom_xy_theta[0]
+        t1_y = self.current_odom_xy_theta[1]
+        t1_theta = self.current_odom_xy_theta[2]
+        t2_x = new_odom_xy_theta[0]
+        t2_y = new_odom_xy_theta[1]
+        t2_theta = new_odom_xy_theta[2]
+
+        # define transformation matrices and finding relative pose 
+        t1_matrix = np.linalg.inv(np.array([np.cos(t1_theta),-1*np.sin(t1_theta), t1_x],[np.sin(t1_theta, np.cos(t1_theta, t1_y))],[0,0,1]))
+        t2_matrix = np.array([np.cos(t2_theta),-1*np.sin(t2_theta), t2_x],[np.sin(t2_theta, np.cos(t2_theta, t2_y))],[0,0,1])
+        rel_pose = t1_matrix@t2_matrix
+
+        # update each point based on relative pose 
+        for i in range(len(self.particle_cloud)):
+            particle = self.particle_cloud[i]
+            part_pose = np.array([np.cos(particle.theta),-1*np.sin(particle.theta), particle.x],[np.sin(particle.theta, np.cos(particle.theta, particle.y))],[0,0,1])
+            update_pose = part_pose@rel_pose
+            particle.x = update_pose[0][3]
+            particle.y = update_pose[1][3]
+            particle.theta = np.arccos(update_pose[0][0])
+        
+
+        
 
     def resample_particles(self):
         """ Resample the particles according to the new particle weights.
