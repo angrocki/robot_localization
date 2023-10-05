@@ -259,7 +259,27 @@ class ParticleFilter(Node):
             r: the distance readings to obstacles
             theta: the angle relative to the robot frame for each corresponding reading 
         """
-        # TODO: implement this
+        #laser scan matrix 
+        r = np.array[r]
+        x = np.multiply(r, np.sin(theta))
+        y = np.multiply(r, np.cos(theta))
+        laser_scan = np.column_stack((x,y,theta))
+        laser_scan = np.transpose(laser_scan)
+        
+        # matrix multiplcation of each point in point
+        for point in self.particle_cloud: 
+            point_pose =  np.array([np.cos(point.theta),-1*np.sin(point.theta), point.x],[np.sin(point.theta, np.cos(point.theta, point.y))],[0,0,1])
+            projected_laser = point_pose@laser_scan
+            distance_error = np.array()
+            # for each degree caculate the error 
+            for degree in projected_laser.shape[0]:
+                x = projected_laser[degree,0]
+                y = projected_laser[degree,1]
+                distance_error.append(self.occupancy_field.get_closest_obstacle_distance(x,y))
+            mean = np.mean(distance_error)
+            std = np.std(distance_error)
+            point.w = mean 
+
         pass
 
     def update_initial_pose(self, msg):
