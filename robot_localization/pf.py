@@ -267,6 +267,7 @@ class ParticleFilter(Node):
         laser_scan = np.transpose(laser_scan)
         
         # matrix multiplcation of each point in point
+        mean_sum = 0
         for point in self.particle_cloud: 
             point_pose =  np.array([np.cos(point.theta),-1*np.sin(point.theta), point.x],[np.sin(point.theta, np.cos(point.theta, point.y))],[0,0,1])
             projected_laser = point_pose@laser_scan
@@ -276,11 +277,11 @@ class ParticleFilter(Node):
                 x = projected_laser[degree,0]
                 y = projected_laser[degree,1]
                 distance_error.append(self.occupancy_field.get_closest_obstacle_distance(x,y))
+            
             mean = np.mean(distance_error)
-            std = np.std(distance_error)
-            point.w = mean 
-
-        pass
+            point.w = mean
+            self.normalize_particles()
+        
 
     def update_initial_pose(self, msg):
         """ Callback function to handle re-initializing the particle filter based on a pose estimate.
@@ -322,8 +323,12 @@ class ParticleFilter(Node):
 
     def normalize_particles(self):
         """ Make sure the particle weights define a valid distribution (i.e. sum to 1.0) """
-        # TODO: implement this
-        pass
+        sum_w = 0
+        for point in self.particle_cloud:
+            sum_w += point.w
+        for point in self.particle_cloud:
+            point.w = point.w/sum_w
+        
 
     def publish_particles(self, timestamp):
         msg = ParticleCloud()
