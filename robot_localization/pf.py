@@ -16,7 +16,7 @@ import math
 import time
 import numpy as np
 from occupancy_field import OccupancyField
-from helper_functions import TFHelper
+from helper_functions import TFHelper, draw_random_sample
 from rclpy.qos import qos_profile_sensor_data
 from angle_helpers import quaternion_from_euler
 from typing import List
@@ -193,7 +193,13 @@ class ParticleFilter(Node):
 
         # TODO: assign the latest pose into self.robot_pose as a geometry_msgs.Pose object
         # just to get started we will fix the robot's pose to always be at the origin
-        self.robot_pose = Pose()
+        best_point =self.particle_cloud[0]
+        for point in self.particle_cloud: 
+            if best_point.w < point.w: 
+               best_point = point
+
+        self.robot_pose = best_point.as_pose()
+
         if hasattr(self, 'odom_pose'):
             self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
                                                             self.odom_pose)
@@ -253,7 +259,10 @@ class ParticleFilter(Node):
         # make sure the distribution is normalized
         self.normalize_particles()
         # TODO: fill out the rest of the implementation
-
+        weights = np.array[]
+        for point in self.particle_cloud:
+            weights.append(point.w)
+        .draw_
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
             r: the distance readings to obstacles
@@ -267,7 +276,7 @@ class ParticleFilter(Node):
         laser_scan = np.transpose(laser_scan)
         
         # matrix multiplcation of each point in point
-        mean_sum = 0
+    
         for point in self.particle_cloud: 
             point_pose =  np.array([np.cos(point.theta),-1*np.sin(point.theta), point.x],[np.sin(point.theta, np.cos(point.theta, point.y))],[0,0,1])
             projected_laser = point_pose@laser_scan
