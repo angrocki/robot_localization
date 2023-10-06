@@ -171,8 +171,8 @@ class ParticleFilter(Node):
             # we have moved far enough to do an update!
             self.update_particles_with_odom()    # update based on odometry
             self.update_particles_with_laser(r, theta)   # update based on laser scan
-            self.update_robot_pose()                # update robot's pose based on particles
-            self.resample_particles()               # resample particles to focus on areas of high density
+            # self.update_robot_pose()                # update robot's pose based on particles
+            # self.resample_particles()               # resample particles to focus on areas of high density
         # publish particles (so things like rviz can see them)
         self.publish_particles(msg.header.stamp)
 
@@ -180,7 +180,6 @@ class ParticleFilter(Node):
         return math.fabs(new_odom_xy_theta[0] - self.current_odom_xy_theta[0]) > self.d_thresh or \
                math.fabs(new_odom_xy_theta[1] - self.current_odom_xy_theta[1]) > self.d_thresh or \
                math.fabs(new_odom_xy_theta[2] - self.current_odom_xy_theta[2]) > self.a_thresh
-
 
     def update_robot_pose(self):
         """ Update the estimate of the robot's pose given the updated particles.
@@ -213,6 +212,7 @@ class ParticleFilter(Node):
             when the particles were last updated and the current odometry.
         """
         new_odom_xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
+
         # compute the change in x,y,theta since our last update
         if self.current_odom_xy_theta:
             old_odom_xy_theta = self.current_odom_xy_theta
@@ -226,30 +226,27 @@ class ParticleFilter(Node):
             return
 
         # define parts of matrix 
-        t1_x = self.current_odom_xy_theta[0]
-        t1_y = self.current_odom_xy_theta[1]
-        t1_theta = self.current_odom_xy_theta[2]
+        t1_x = old_odom_xy_theta[0]
+        t1_y = old_odom_xy_theta[1]
+        t1_theta = old_odom_xy_theta[2]
         t2_x = new_odom_xy_theta[0]
         t2_y = new_odom_xy_theta[1]
         t2_theta = new_odom_xy_theta[2]
 
         # define transformation matrices and finding relative pose 
-        t1_matrix = np.linalg.inv(np.array([np.cos(t1_theta),-1*np.sin(t1_theta), t1_x],[np.sin(t1_theta, np.cos(t1_theta, t1_y))],[0,0,1]))
-        t2_matrix = np.array([np.cos(t2_theta),-1*np.sin(t2_theta), t2_x],[np.sin(t2_theta, np.cos(t2_theta, t2_y))],[0,0,1])
+        t1_matrix = np.linalg.inv(np.array([[np.cos(t1_theta),-1*np.sin(t1_theta), t1_x],[np.sin(t1_theta), np.cos(t1_theta), t1_y],[0,0,1]]))
+        t2_matrix = np.array([[np.cos(t2_theta),-1*np.sin(t2_theta), t2_x],[np.sin(t2_theta), np.cos(t2_theta), t2_y],[0,0,1]])
         rel_pose = t1_matrix@t2_matrix
 
         # update each point based on relative pose 
         for i in range(len(self.particle_cloud)):
             particle = self.particle_cloud[i]
-            part_pose = np.array([np.cos(particle.theta),-1*np.sin(particle.theta), particle.x],[np.sin(particle.theta, np.cos(particle.theta, particle.y))],[0,0,1])
+            part_pose = np.array([[np.cos(particle.theta),-1*np.sin(particle.theta), particle.x],[np.sin(particle.theta), np.cos(particle.theta), particle.y],[0,0,1]])
             update_pose = part_pose@rel_pose
-            particle.x = update_pose[0][3]
-            particle.y = update_pose[1][3]
+            particle.x = update_pose[0][2]
+            particle.y = update_pose[1][2]
             particle.theta = np.arccos(update_pose[0][0])
         
-
-        
-
     def resample_particles(self):
         """ Resample the particles according to the new particle weights.
             The weights stored with each particle should define the probability that a particular
@@ -259,39 +256,42 @@ class ParticleFilter(Node):
         # make sure the distribution is normalized
         self.normalize_particles()
         # TODO: fill out the rest of the implementation
-        weights = np.array[]
+
+        #establishing an array of all weights in point cloud, then drawing random sample of new particles based on weights
+        weights = np.array()
         for point in self.particle_cloud:
             weights.append(point.w)
-        .draw_
+        self.particle_cloud = draw_random_sample(self.particle_cloud, weights, 300) # arbitrary sample num CAN CHANGE LATER
+
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
             r: the distance readings to obstacles
             theta: the angle relative to the robot frame for each corresponding reading 
         """
-        #laser scan matrix 
-        r = np.array[r]
+        # laser scan matrix (homogeneous matrix)
+        r = np.array(r)
         x = np.multiply(r, np.sin(theta))
         y = np.multiply(r, np.cos(theta))
         laser_scan = np.column_stack((x,y,theta))
         laser_scan = np.transpose(laser_scan)
         
-        # matrix multiplcation of each point in point
-    
+        # matrix multiplcation of each point in cloud
         for point in self.particle_cloud: 
-            point_pose =  np.array([np.cos(point.theta),-1*np.sin(point.theta), point.x],[np.sin(point.theta, np.cos(point.theta, point.y))],[0,0,1])
-            projected_laser = point_pose@laser_scan
-            distance_error = np.array()
-            # for each degree caculate the error 
+            point_pose =  np.array([[np.cos(point.theta),-1*np.sin(point.theta), point.x],[np.sin(point.theta), np.cos(point.theta), point.y],[0,0,1]])
+            projected_laser = point_pose@laser_scan        
+            distance_error = np.array([])
+
+        # for each degree of the scan, caculate the error (how far the closest obj is)
             for degree in projected_laser.shape[0]:
                 x = projected_laser[degree,0]
                 y = projected_laser[degree,1]
                 distance_error.append(self.occupancy_field.get_closest_obstacle_distance(x,y))
             
+        # take the avg of all the errors of the scan, then set the weight to this avg distance
             mean = np.mean(distance_error)
             point.w = mean
             self.normalize_particles()
         
-
     def update_initial_pose(self, msg):
         """ Callback function to handle re-initializing the particle filter based on a pose estimate.
             These pose estimates could be generated by another ROS Node or could come from the rviz GUI """
@@ -314,7 +314,8 @@ class ParticleFilter(Node):
             xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
         self.particle_cloud = []
         noise = 4
-        # generating rand distributions for each x,y,z abt a range
+
+        # generating rand distributions for each x,y,z abt a range 
         x = self.normal_dist(xy_theta[0], noise, self.n_particles)
         y = self.normal_dist(xy_theta[1], noise, self.n_particles)
         yaw = self.normal_dist(xy_theta[2], noise, self.n_particles)
@@ -338,7 +339,6 @@ class ParticleFilter(Node):
         for point in self.particle_cloud:
             point.w = point.w/sum_w
         
-
     def publish_particles(self, timestamp):
         msg = ParticleCloud()
         msg.header.frame_id = self.map_frame
