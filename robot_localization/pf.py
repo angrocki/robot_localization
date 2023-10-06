@@ -282,7 +282,7 @@ class ParticleFilter(Node):
             distance_error = np.array([])
 
         # for each degree of the scan, caculate the error (how far the closest obj is)
-            for degree in projected_laser.shape[0]:
+            for degree in np.shape(projected_laser)[0]:
                 x = projected_laser[degree,0]
                 y = projected_laser[degree,1]
                 distance_error.append(self.occupancy_field.get_closest_obstacle_distance(x,y))
