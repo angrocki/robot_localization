@@ -171,8 +171,8 @@ class ParticleFilter(Node):
             # we have moved far enough to do an update!
             self.update_particles_with_odom()    # update based on odometry
             self.update_particles_with_laser(r, theta)   # update based on laser scan
-            # self.update_robot_pose()                # update robot's pose based on particles
-            # self.resample_particles()               # resample particles to focus on areas of high density
+            self.update_robot_pose()                # update robot's pose based on particles
+            self.resample_particles()               # resample particles to focus on areas of high density
         # publish particles (so things like rviz can see them)
         self.publish_particles(msg.header.stamp)
 
@@ -258,9 +258,9 @@ class ParticleFilter(Node):
         # TODO: fill out the rest of the implementation
 
         #establishing an array of all weights in point cloud, then drawing random sample of new particles based on weights
-        weights = np.array()
+        weights = np.array([])
         for point in self.particle_cloud:
-            weights.append(point.w)
+            weights= np.append(weights, point.w)
         self.particle_cloud = draw_random_sample(self.particle_cloud, weights, 300) # arbitrary sample num CAN CHANGE LATER
 
     def update_particles_with_laser(self, r, theta):
@@ -268,28 +268,45 @@ class ParticleFilter(Node):
             r: the distance readings to obstacles
             theta: the angle relative to the robot frame for each corresponding reading 
         """
-        # laser scan matrix (homogeneous matrix)
-        r = np.array(r)
-        x = np.multiply(r, np.sin(theta))
-        y = np.multiply(r, np.cos(theta))
-        laser_scan = np.column_stack((x,y,theta))
+        # laser scan matrix (homogeneous matrix) being filtered of inf/nan values 
+        r = np.array(r)                     # making an array of the laser scan info
+        filtered_r = np.array([])           # establishing empty array for filtered info 
+        filtered_theta = np.array([])       # corresponding empty array for laser theta
+        for idx in range(len(r)):
+            if not np.isnan(r[idx]) and not math.isinf(r[idx]):
+                filtered_r = np.append(filtered_r,r[idx])
+                filtered_theta = np.append(filtered_theta, theta[idx])
+                  
+        # 
+        x = np.multiply(filtered_r, np.sin(filtered_theta))
+        y = np.multiply(filtered_r, np.cos(filtered_theta))
+        laser_scan = np.column_stack((x,y,1))
         laser_scan = np.transpose(laser_scan)
         
-        # matrix multiplcation of each point in cloud
+        # # matrix multiplication of each point in cloud
         for point in self.particle_cloud: 
+            if self.occupancy_field.get_closest_obstacle_distance(point.x, point.y) == float('nan'):
+                point.w = 0.0
+                continue
             point_pose =  np.array([[np.cos(point.theta),-1*np.sin(point.theta), point.x],[np.sin(point.theta), np.cos(point.theta), point.y],[0,0,1]])
-            projected_laser = point_pose@laser_scan        
+            projected_laser = point_pose@laser_scan
             distance_error = np.array([])
 
-        # for each degree of the scan, caculate the error (how far the closest obj is)
-            for degree in np.shape(projected_laser)[0]:
-                x = projected_laser[degree,0]
-                y = projected_laser[degree,1]
-                distance_error.append(self.occupancy_field.get_closest_obstacle_distance(x,y))
+        # # for each degree of the scan, caculate the error (how far the closest obj is)
+            for row in projected_laser:
+                x = row[0]
+                y = row[1]
+                distance_error = np.append(distance_error, dist)
             
-        # take the avg of all the errors of the scan, then set the weight to this avg distance
-            mean = np.mean(distance_error)
-            point.w = mean
+        # if the particle is off the map, then give it a weight of 0 automatically
+            
+        # # take the avg of all the errors of the scan, then set the weight to this avg distance
+            mean_w = np.nanmean(distance_error)
+            if mean_w < 0.05:
+                point.w = 1
+            else:
+                point.w = 0.05
+            # point.w = 1/mean_w
             self.normalize_particles()
         
     def update_initial_pose(self, msg):
@@ -326,6 +343,10 @@ class ParticleFilter(Node):
             particle.x = x[i]
             particle.y = y[i]
             particle.theta = yaw[i]
+
+            if (z:= np.isnan(self.occupancy_field.get_closest_obstacle_distance(particle.x, particle.y))):
+                continue
+            print(z)
             self.particle_cloud.append(particle)
 
         self.normalize_particles()
