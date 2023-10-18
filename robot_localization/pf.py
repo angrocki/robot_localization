@@ -75,8 +75,11 @@ class ParticleFilter(Node):
                                    The pose is expressed as a list [x,y,theta] (where theta is the yaw)
             thread: this thread runs your main loop
     """
+    #Constants for noise
     NOISE = 0.05
-    INIT_NOISE = 1
+    NOISE_THETA= 0.01
+    INIT_NOISE = 0.1
+    INIT_NOISE_THETA = 0.05
     def __init__(self):
         super().__init__('pf')
         self.base_frame = "base_footprint"   # the frame of the robot base
@@ -245,11 +248,8 @@ class ParticleFilter(Node):
         for particle in self.particle_cloud:
             part_pose = np.array([[np.cos(particle.theta),-np.sin(particle.theta), particle.x],[np.sin(particle.theta), np.cos(particle.theta), particle.y],[0,0,1]])
             update_pose = part_pose@rel_pose
-            noise = np.random.normal(size=2) 
-
-            # print(f"noise: {noise[0]}")
-            particle.x = update_pose[0][2] + noise[0]
-            particle.y = update_pose[1][2] + noise[1]
+            particle.x = update_pose[0][2] 
+            particle.y = update_pose[1][2]
             # particle.theta = np.arccos(update_pose[0][0])
             particle.theta += new_odom_xy_theta[2] - old_odom_xy_theta[2]
         
@@ -271,10 +271,7 @@ class ParticleFilter(Node):
         for particle in self.particle_cloud:
             particle.x += np.random.normal(0, self.NOISE)
             particle.y += np.random.normal(0, self.NOISE)
-            particle.theta += np.random.normal(0, self.NOISE)
-
-        self.normalize_particles
-        self.update_robot_pose
+            particle.theta += np.random.normal(0, self.NOISE_THETA)
 
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
@@ -298,16 +295,16 @@ class ParticleFilter(Node):
         
         # # matrix multiplication of each point in cloud
         for point in self.particle_cloud: 
+            # Remove particles outside the map
             if np.isnan(self.occupancy_field.get_closest_obstacle_distance(point.x, point.y)):
                 point.w = 0.0
                 continue
             point_pose = np.array([[np.cos(point.theta),-np.sin(point.theta), point.x],[np.sin(point.theta), np.cos(point.theta), point.y],[0,0,1]])
             projected_laser = point_pose@laser_scan
-            distance_error = np.array([])
 
         # # for each degree of the scan, caculate the error (how far the closest obj is)
             weight_sum = 0
-            for row in projected_laser:
+            for row in projected_laser.T:
                 x = row[0]
                 y = row[1]
                 # distance_error = np.append(distance_error, self.occupancy_field.get_closest_obstacle_distance(x,y))
@@ -353,7 +350,7 @@ class ParticleFilter(Node):
         # generating rand distributions for each x,y,z abt a range 
         x = self.normal_dist(xy_theta[0], self.INIT_NOISE, self.n_particles)
         y = self.normal_dist(xy_theta[1], self.INIT_NOISE, self.n_particles)
-        yaw = self.normal_dist(xy_theta[2], self.INIT_NOISE, self.n_particles)
+        yaw = self.normal_dist(xy_theta[2], self.INIT_NOISE_THETA, self.n_particles)
 
         # create n number of particle objects and append to list based on distribution values 
         for i in range(1,self.n_particles):
