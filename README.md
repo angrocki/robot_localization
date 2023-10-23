@@ -130,9 +130,9 @@ We faced multiple challenges with our robot. We initially ran into multiple
 problems visualizing the robot which led us to implement the majority of the
 code functions. Our implementation was extremely difficult to debug since we
 tried debugging at the final step as opposed to testing smaller test cases
-before the final. We focused mainly on the logic of each problem as opposed
+before the final. We focused mainly on the logic of each problem as opposed to 
 smaller implementation details like noise, filtering data, and matrix
-multiplication and parsing.
+multiplication and parsing. Ultimately, what we found the most challenging was working with "technically" correct code where smaller tweaks here and there would ultimately fix our implementation.
 
 ## Improvements:
 
