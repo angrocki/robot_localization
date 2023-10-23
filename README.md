@@ -45,13 +45,12 @@ closest to the robot’s actual position and pose.
 #### 1. Initializing a Particle Cloud
 
 We first initialized a particle cloud by creating normal distributions of x, y,
-and theta values for our particles to assume, and randomly sampling values from
-the distributions. Each distribution’s output was stored as an array of values,
-and each initialized particle was assigned an x, y, and theta value
-corresponding to each index of the array. We then filtered out particles that
-were initialized outside of the map – if they had x or y values that were NaN,
-they were simply not added to the particle cloud. Finally, each particle was
-normalized.
+and theta values centered around an initial. given estimate of the robot's pose for our particles to assume, and randomly sampling values from the distributions. Each 
+distribution’s output was stored as an array of values, and each initialized
+particle was assigned an x, y, and theta value corresponding to each index
+of the array. We then filtered out particles that
+were initialized outside of the map by simply not adding them to the particle cloud; This is because x and y values outside of the map do not exist in the stored map. Finally, each particle was
+normalized. 
 
 #### 2. Updating particles using the robot’s new odometry pose
 
@@ -63,18 +62,20 @@ moving. We calculate this using matrix multiplication.
 First, we must express the robot’s previous pose (T1) and its current pose that
 it moved to (T2) in the odometry coordinate frame. We can represent these two
 using homogeneous transformation matrices as follows:
-
-![image](/images/image1.jpg) However, we are interested in understanding the
+![image](/images/image3.jpg)
+However, we are interested in understanding the
 robot’s current pose relative to its previous pose. We can do this by inverting
 our previous pose T1 matrix, then performing matrix multiplication with the T2
-matrix, which will give us our relative pose. ![image](/images/image2.jpg) Now
+matrix, which will give us our relative pose. 
+![image](/images/image1.jpg) 
+Now
 that we have our relative pose, we want to make the particles move in the same
 way the robot is moving. Since we know what the particle’s current pose is, and
 we want to know the pose of the where we want the particle to be, we can find
 this by representing our particle’s current pose as a homogeneous matrix as
 well, and again performing matrix multiplication of the particle pose and
 relative pose to find the pose of the particle after moving.
-![image](/images/image3.jpg)
+![image](/images/image4.jpg)
 
 #### 3. Updating particles’ weight using the robot’s laser scan data
 
@@ -91,7 +92,7 @@ scan is in the odometry frame, we need to project the laser scan onto the
 particle in the map frame. We do this using matrix multiplication, where the
 homogeneous matrix manipulates the laser scan to be in the map frame.
 
-![image](/images/image4.jpg)
+![image](/images/image2.jpg) 
 
 From there, we find the closest object distance of the projected laser scan and
 adjust our weights based off of it.
@@ -104,7 +105,7 @@ robot’s pose gets updated to that particle’s pose.
 
 #### 5. Resampling the particles in the point cloud based on their weights
 
-To resample the particles, we used a normal distribution based on the weights of
+To resample the particles, we used a distribution based on the weights of
 the particles currently in the particle cloud. To each new particle, we added
 noise to their pose. Intuitively, we knew that adding too much noise would cause
 an ineffective filter, as would adding too little noise. We determined our
