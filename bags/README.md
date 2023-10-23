@@ -1,0 +1,3 @@
+### localization_macfirst_floor_take_1 & localization_macfirst_floor_take_2
+
+Both of these bags are the only bags we recorded (any other bags in this folder were provided to us). When we recorded the bags, we ran the bags provided to us, as well as launched our test_pf file, and visualized the session in rviz. You can see from our bags that our particle filter is not completely devoid of error; there are moments where the laser scan "glitches" and unaligns itself with the map. It is expected that our code is not 100% accurate. This could be due to the amount of noise we add to our resampling or other tweaks throughout the code. 
